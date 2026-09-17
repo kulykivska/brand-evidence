@@ -55,7 +55,7 @@ def test_a_capability_url_is_never_logged_in_full() -> None:
 
 
 def test_credentials_inside_a_url_are_masked() -> None:
-    out = _mask(None, "info", {"smtp": "smtps://user:hunter2@mail.example.com:465"})
+    out = _mask(None, "info", {"smtp": "smtps://user:hunter2@example.com:465"})
     assert "hunter2" not in str(out)
 
 
