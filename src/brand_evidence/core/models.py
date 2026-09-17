@@ -84,7 +84,8 @@ class EvidenceEntry(Base):
     occurred_at: Mapped[str] = mapped_column(Text, nullable=False)
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    prev_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    # Unique: one successor per entry, so a forked chain cannot be written.
+    prev_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     entry_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
 
 
