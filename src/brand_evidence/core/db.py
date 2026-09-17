@@ -1,4 +1,11 @@
-"""Engine and session factory. SQLite in WAL mode; evidence_log is write-protected by triggers."""
+"""Engine and session factory.
+
+SQLite in WAL mode. Two things keep the evidence log linear under the
+scheduled jobs, which do overlap: every transaction starts as BEGIN
+IMMEDIATE, so a writer takes the write lock before it reads the chain head
+rather than after, and a unique index on prev_hash makes a fork
+unrepresentable even if something else appends. Rows are also write-
+protected by triggers."""
 
 from __future__ import annotations
 
@@ -20,17 +27,32 @@ APPEND_ONLY_TRIGGERS = (
 )
 
 
+# How long a writer waits for another writer. A capture run holds its
+# transaction for as long as the network takes, so this is generous.
+BUSY_TIMEOUT_MS = 30_000
+
+
 def make_engine(db_path: Path) -> Engine:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(f"sqlite:///{db_path}", future=True)
 
     @event.listens_for(engine, "connect")
     def _on_connect(dbapi_conn, _record) -> None:  # type: ignore[no-untyped-def]
+        # pysqlite begins a transaction only at the first write, which is the
+        # gap that let two processes read the same chain head.
+        dbapi_conn.isolation_level = None
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.execute("PRAGMA synchronous=FULL")
+        cursor.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
         cursor.close()
+
+    @event.listens_for(engine, "begin")
+    def _on_begin(conn) -> None:  # type: ignore[no-untyped-def]
+        # IMMEDIATE takes the write lock before the head is read. Readers pay
+        # for it too: in WAL they no longer run alongside a writer (see #6).
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
 
     return engine
 
