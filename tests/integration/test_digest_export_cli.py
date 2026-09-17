@@ -4,10 +4,12 @@ import csv
 import hashlib
 import io
 import sqlite3
+import sys
 import zipfile
 from datetime import date
 from pathlib import Path
 
+import pytest
 from sqlalchemy import select
 from typer.testing import CliRunner
 
@@ -129,6 +131,7 @@ def test_cli_fails_fast_on_missing_config(tmp_path: Path, monkeypatch) -> None: 
     assert "Configuration incomplete" in result.output
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="launchd is macOS only")
 def test_schedule_dry_run_names_four_jobs(be: App, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.chdir(be.settings.db_path.parent)
     result = runner.invoke(cli, ["schedule", "install", "--dry-run"], env=_env(be))
