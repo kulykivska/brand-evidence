@@ -1,0 +1,38 @@
+name: daily-crawl
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync
+      - name: Restore database
+        uses: actions/cache@v4
+        with:
+          path: brand-evidence.db
+          key: brand-evidence-db-${{ github.run_id }}
+          restore-keys: brand-evidence-db-
+      - run: uv run brand-evidence init
+        env: &env
+          BE_DB_PATH: ./brand-evidence.db
+          BE_STORE_PATH: ./store
+          BE_DIGEST_PATH: ./digests
+          BE_BRAND_TERMS: ${{ vars.BE_BRAND_TERMS }}
+          BE_ARCHIVE_PROVIDER: wayback
+          BE_WAYBACK_ACCESS_KEY: ${{ secrets.BE_WAYBACK_ACCESS_KEY }}
+          BE_WAYBACK_SECRET_KEY: ${{ secrets.BE_WAYBACK_SECRET_KEY }}
+          BE_GOOGLE_ALERTS_FEEDS: ${{ secrets.BE_GOOGLE_ALERTS_FEEDS }}
+          BE_REDDIT_CLIENT_ID: ${{ secrets.BE_REDDIT_CLIENT_ID }}
+          BE_REDDIT_CLIENT_SECRET: ${{ secrets.BE_REDDIT_CLIENT_SECRET }}
+      - run: uv run brand-evidence crawl --no-capture
+        env: *env
+      - run: uv run brand-evidence digest
+        env: *env
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest
+          path: digests/

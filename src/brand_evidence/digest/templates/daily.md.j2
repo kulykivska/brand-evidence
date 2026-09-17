@@ -1,0 +1,71 @@
+# brand-evidence digest {{ date }}
+
+Window: since {{ window_start }} (UTC)
+
+## Run status
+
+{% if runs %}
+| job | status | started (UTC) | notes |
+|---|---|---|---|
+{% for r in runs %}
+| {{ r.job }} | {{ r.status }} | {{ r.started_at[:19] }} | {% if r.failed_sources %}failed sources: {{ r.failed_sources | join(", ") }}{% endif %}{% if r.skipped_sources %} skipped (no credentials): {{ r.skipped_sources | join(", ") }}{% endif %}{% if r.uncaptured %} uncaptured mentions: {{ r.uncaptured }}{% endif %}{% for line in r.errors %} {{ line }}{% endfor %} |
+{% endfor %}
+{% else %}
+No runs recorded in this window. This is a coverage gap.
+{% endif %}
+
+## Posts captured
+
+{% if posts %}
+| platform | url | archive |
+|---|---|---|
+{% for p in posts %}
+| {{ p.platform }} | {{ p.url }} | {{ p.archive }}{% if p.snapshot_url %} ({{ p.snapshot_url }}){% endif %} |
+{% endfor %}
+{% else %}
+0 posts captured.
+{% endif %}
+
+## New mentions
+
+{% if new_mentions %}
+{% for m in new_mentions %}
+- **{{ m.source }}** — {{ m.title }}
+  {{ m.url }}
+{% if m.excerpt %}
+  > {{ m.excerpt | replace("\n", " ") }}
+{% endif %}
+{% endfor %}
+{% else %}
+0 new mentions.
+{% endif %}
+
+## Mentions awaiting triage (older than 7 days)
+
+{% if stale_mentions %}
+{% for m in stale_mentions %}
+- {{ m.discovered_at }} {{ m.url }} (id {{ m.id }})
+{% endfor %}
+{% else %}
+None.
+{% endif %}
+
+## Archive snapshots that exhausted retries
+
+{% if stuck_snapshots %}
+{% for s in stuck_snapshots %}
+- {{ s.subject_type }} {{ s.url }} — {{ s.status }} after {{ s.attempts }} attempts
+{% endfor %}
+{% else %}
+None.
+{% endif %}
+
+## Evidence chain
+
+{{ chain }}
+
+## Running totals
+
+| posts | mentions | evidence entries | consecutive coverage days |
+|---|---|---|---|
+| {{ totals.posts }} | {{ totals.mentions }} | {{ totals.evidence_entries }} | {{ totals.coverage_days }} |

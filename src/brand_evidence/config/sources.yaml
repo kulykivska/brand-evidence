@@ -1,0 +1,20 @@
+# Which mention sources run during `brand-evidence crawl`.
+# A source that is enabled here but lacks credentials in .env is skipped with a warning.
+sources:
+  google_alerts_rss:
+    enabled: true
+  hn_algolia:
+    enabled: true
+  reddit:
+    enabled: true
+  web_search:
+    enabled: true
+
+# Query terms. Overrides BE_BRAND_TERMS when non-empty.
+terms: []
+
+# Hosts never captured on the crawl path: your own properties, which the push
+# path captures instead. For example:
+#   skip_capture_hosts:
+#     - example.com
+skip_capture_hosts: []
