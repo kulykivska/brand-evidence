@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -53,6 +54,7 @@ def test_cli_unknown_project_exits_2(tmp_path: Path, monkeypatch) -> None:  # ty
     assert result.exit_code == 2 and "unknown project" in result.output
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="launchd is macOS only")
 def test_cli_project_selects_env_file(be: App, tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     s = be.settings
     env = tmp_path / "proj.env"

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -74,10 +73,15 @@ def test_archive_failure_is_recorded_not_hidden(be: App) -> None:
         assert snap.status == "pending" and snap.request_url == "https://x.com/northwind/status/1"
 
 
+def _chromium_available() -> bool:
+    caches = ("Library/Caches/ms-playwright", ".cache/ms-playwright")
+    return any(
+        any(Path.home().joinpath(c).glob("chromium*")) for c in caches
+    )
+
+
 @pytest.mark.skipif(
-    shutil.which("chromium") is None
-    and not any(Path.home().joinpath("Library/Caches/ms-playwright").glob("chromium-*")),
-    reason="Playwright Chromium not installed",
+    not _chromium_available(), reason="Playwright Chromium not installed"
 )
 def test_real_playwright_capture_of_local_fixture(be: App) -> None:
     from brand_evidence.ingest.capture_pipeline import make_capturer
