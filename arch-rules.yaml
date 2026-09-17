@@ -1,0 +1,25 @@
+# Machine-readable architecture rules. tests/test_arch_rules.py enforces them.
+version: 1
+rules:
+  - id: no-llm-in-evidence-path
+    description: The capture and storage path contains no LLM calls (requirements §2, §15).
+    forbidden_imports: ["anthropic", "openai", "langchain", "google.generativeai"]
+    scope: ["src/brand_evidence/core", "src/brand_evidence/capture", "src/brand_evidence/ingest",
+            "src/brand_evidence/sources", "src/brand_evidence/export.py"]
+  - id: no-evidence-log-mutation
+    description: Nothing updates or deletes evidence_log rows.
+    forbidden_patterns: ["update(EvidenceEntry)", "delete(EvidenceEntry)", "DELETE FROM evidence_log",
+                         "UPDATE evidence_log"]
+    scope: ["src/brand_evidence"]
+  - id: no-secrets-in-repo
+    description: No credentials committed.
+    forbidden_patterns: ["sk-ant-", "AKIA", "BEGIN PRIVATE KEY"]
+    scope: ["src", "tests", "features", "alembic", "README.md", ".env.example"]
+  - id: no-cookie-persistence
+    description: Browser sessions are never persisted (requirements §6).
+    forbidden_patterns: ["storage_state=", "add_cookies("]
+    scope: ["src/brand_evidence/capture"]
+  - id: english-only
+    description: All code, comments, output and docs are in English.
+    forbidden_regex: "[\\u0400-\\u04FF]"
+    scope: ["src", "tests", "features", "README.md", "CLAUDE.md"]
