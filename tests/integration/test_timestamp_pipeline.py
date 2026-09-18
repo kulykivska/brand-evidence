@@ -8,33 +8,14 @@ from sqlalchemy import select, text
 from typer.testing import CliRunner
 
 from brand_evidence.app import App
-from brand_evidence.capture.timestamp import TimestampToken
 from brand_evidence.core import evidence_log
 from brand_evidence.core.db import session_scope
 from brand_evidence.export import export_zip
 from brand_evidence.ingest.capture_pipeline import timestamp_chain_head
 from brand_evidence.ingest.hook import ingest_post
-from tests.factories import FakeArchive, FakeCapturer
+from tests.factories import FakeArchive, FakeCapturer, FakeTSA
 
 runner = CliRunner()
-
-
-class FakeTSA:
-    url = "https://tsa.example/tsr"
-
-    def __init__(self) -> None:
-        self.stamped: list[bytes] = []
-
-    def stamp(self, data: bytes) -> TimestampToken:
-        self.stamped.append(data)
-        return TimestampToken(
-            tsr=b"TSR:" + hashlib.sha256(data).digest(),
-            gen_time="2026-09-15T04:00:00.000000+00:00",
-            digest_hex=hashlib.sha256(data).hexdigest(),
-            tsa_url=self.url,
-            serial="42",
-            policy="1.2.3",
-        )
 
 
 def _seed(be: App) -> None:
@@ -80,7 +61,9 @@ def test_export_ships_manifest_tsr_and_logs_the_export(be: App, tmp_path: Path) 
     with zipfile.ZipFile(path) as zf:
         manifest = zf.read("MANIFEST.txt")
         assert zf.read("MANIFEST.tsr") == b"TSR:" + hashlib.sha256(manifest).digest()
-        assert "TIMESTAMP.txt" not in zf.namelist()
+        # Always present now, and it says what the stamp was: the README
+        # tells the recipient to read it.
+        assert "gen_time" in zf.read("TIMESTAMP.txt").decode()
         assert "openssl ts -verify" in zf.read("README.txt").decode()
     assert be.tsa.stamped == [manifest]
     with be.sessions() as s:
@@ -107,8 +90,12 @@ def test_verify_detects_anchor_that_no_longer_matches(be: App, monkeypatch) -> N
     # Forge the anchored entry (attacker drops the trigger); the token now points at a lie.
     with be.engine.begin() as conn:
         conn.execute(text("DROP TRIGGER evidence_log_no_update"))
+        # Not a bare 'f': one hash in sixteen already starts with one, and the
+        # forgery was then a no-op that left the test passing by luck.
         conn.exec_driver_sql(
-            "UPDATE evidence_log SET entry_hash='f'||substr(entry_hash,2) WHERE seq=?",
+            "UPDATE evidence_log SET entry_hash="
+            "(CASE substr(entry_hash,1,1) WHEN 'f' THEN '0' ELSE 'f' END)"
+            "||substr(entry_hash,2) WHERE seq=?",
             (row.capture_meta["stamped_seq"],),
         )
     from brand_evidence.cli import _check_timestamps

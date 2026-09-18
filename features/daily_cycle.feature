@@ -12,7 +12,7 @@ Feature: Daily evidence cycle
     And the digest lists 1 new mention
     And the digest names the failed source "broken"
     And the crawl run is recorded as "partial"
-    And the evidence chain verifies with 12 entries
+    And the evidence chain verifies with 13 entries
 
   Scenario: A quiet day produces an empty digest
     Given an empty brand-evidence database

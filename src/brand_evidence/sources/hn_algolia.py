@@ -6,7 +6,13 @@ from datetime import datetime
 
 import httpx
 
-from brand_evidence.sources.base import RawHit, SourceUnavailableError, terms_in, user_agent
+from brand_evidence.sources.base import (
+    RawHit,
+    SourceUnavailableError,
+    fetch,
+    http_kwargs,
+    terms_in,
+)
 
 ENDPOINT = "https://hn.algolia.com/api/v1/search_by_date"
 
@@ -18,7 +24,7 @@ class HNAlgoliaSource:
         self.client = client
 
     async def search(self, terms: list[str], since: datetime) -> list[RawHit]:
-        client = self.client or httpx.AsyncClient(timeout=30, headers={"User-Agent": user_agent()})
+        client = self.client or httpx.AsyncClient(**http_kwargs())  # type: ignore[arg-type]
         hits: dict[str, RawHit] = {}
         try:
             for term in terms:
@@ -28,7 +34,7 @@ class HNAlgoliaSource:
                     "hitsPerPage": "50",
                 }
                 try:
-                    response = await client.get(ENDPOINT, params=params)
+                    response = await fetch(client, "GET", ENDPOINT, params=params)
                     response.raise_for_status()
                 except httpx.HTTPError as exc:
                     raise SourceUnavailableError(f"{self.name}: {exc}") from exc

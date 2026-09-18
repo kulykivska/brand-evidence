@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
+
+import httpx
 
 from brand_evidence import __version__
 
@@ -28,6 +30,66 @@ def user_agent() -> str:
     return f"brand-evidence/{__version__} (record-keeping bot)"
 
 
+# A feed that serves gigabytes - hostile or merely misconfigured - used to
+# OOM-kill the scheduled job, leaving its run row "running" forever.
+MAX_RESPONSE_BYTES = 25 * 1024 * 1024
+
+
+class SourceUnavailableError(Exception):
+    """Raised when a source cannot be reached; the run becomes `partial`, never `failed`."""
+
+
+class ResponseTooLargeError(SourceUnavailableError):
+    """The peer sent, or promised, more body than this tool will read."""
+
+
+def http_kwargs(timeout: float = 30.0) -> dict[str, object]:
+    """Shared client settings. Bodies are bounded by `fetch`, not by a hook."""
+    return {
+        "timeout": timeout,
+        "headers": {"User-Agent": user_agent()},
+        "follow_redirects": True,
+    }
+
+
+# Rebuilding the response from the bytes we read means dropping the headers that
+# describe the wire body, which is no longer what the caller holds.
+_WIRE_HEADERS = ("content-length", "content-encoding", "transfer-encoding")
+
+
+async def fetch(client: Any, method: str, url: str, **kwargs: Any) -> Any:
+    """One request whose body is read up to MAX_RESPONSE_BYTES and no further.
+
+    A declared length is refused before anything is read; a response that
+    declares nothing - the shape a hostile endpoint sends - is counted as it
+    streams and abandoned at the limit.
+    """
+    async with client.stream(method, url, **kwargs) as streamed:
+        declared = streamed.headers.get("content-length")
+        if declared is not None and (not declared.isdigit() or int(declared) > MAX_RESPONSE_BYTES):
+            raise ResponseTooLargeError(
+                f"{url} declares {declared!r} bytes, over the {MAX_RESPONSE_BYTES} limit"
+            )
+        total = 0
+        chunks: list[bytes] = []
+        async for chunk in streamed.aiter_bytes():
+            total += len(chunk)
+            if total > MAX_RESPONSE_BYTES:
+                raise ResponseTooLargeError(
+                    f"{url} sent more than the {MAX_RESPONSE_BYTES} byte limit"
+                )
+            chunks.append(chunk)
+        headers = [
+            (k, v) for k, v in streamed.headers.multi_items() if k.lower() not in _WIRE_HEADERS
+        ]
+        return httpx.Response(
+            streamed.status_code,
+            headers=headers,
+            content=b"".join(chunks),
+            request=streamed.request,
+        )
+
+
 @dataclass
 class RawHit:
     url: str
@@ -46,10 +108,6 @@ class Source(Protocol):
     name: str
 
     async def search(self, terms: list[str], since: datetime) -> list[RawHit]: ...
-
-
-class SourceUnavailableError(Exception):
-    """Raised when a source cannot be reached; the run becomes `partial`, never `failed`."""
 
 
 def terms_in(text: str, terms: list[str]) -> list[str]:

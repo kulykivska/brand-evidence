@@ -6,7 +6,13 @@ from datetime import UTC, datetime
 
 import httpx
 
-from brand_evidence.sources.base import RawHit, SourceUnavailableError, terms_in, user_agent
+from brand_evidence.sources.base import (
+    RawHit,
+    SourceUnavailableError,
+    fetch,
+    http_kwargs,
+    terms_in,
+)
 
 TOKEN_URL = "https://www.reddit.com/api/v1/access_token"  # noqa: S105 - a URL, not a secret
 SEARCH_URL = "https://oauth.reddit.com/search"
@@ -23,7 +29,9 @@ class RedditSource:
         self.client = client
 
     async def _token(self, client: httpx.AsyncClient) -> str:
-        response = await client.post(
+        response = await fetch(
+            client,
+            "POST",
             TOKEN_URL,
             data={"grant_type": "client_credentials"},
             auth=(self.client_id, self.client_secret),
@@ -32,14 +40,16 @@ class RedditSource:
         return str(response.json()["access_token"])
 
     async def search(self, terms: list[str], since: datetime) -> list[RawHit]:
-        client = self.client or httpx.AsyncClient(timeout=30, headers={"User-Agent": user_agent()})
+        client = self.client or httpx.AsyncClient(**http_kwargs())  # type: ignore[arg-type]
         hits: dict[str, RawHit] = {}
         try:
             try:
                 token = await self._token(client)
                 headers = {"Authorization": f"bearer {token}"}
                 for term in terms:
-                    response = await client.get(
+                    response = await fetch(
+                        client,
+                        "GET",
                         SEARCH_URL,
                         params={"q": f'"{term}"', "sort": "new", "limit": 100, "type": "link"},
                         headers=headers,

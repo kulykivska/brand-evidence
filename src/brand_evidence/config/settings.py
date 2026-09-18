@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     web_search_provider: Literal["", "brave"] = ""
     web_search_api_key: str = ""
 
+    # Which sources run, the query terms and the hosts never captured. Empty
+    # means sources.yaml beside this .env, and the packaged defaults if there
+    # is none: two projects on one machine must not share one file.
+    sources_file: Path | None = None
+
     # Goes in the User-Agent of every request, so the sites this visits can see
     # who is running it. Empty means the User-Agent carries no URL.
     contact_url: str = ""

@@ -19,7 +19,14 @@ from brand_evidence.app import App
 from brand_evidence.core import evidence_log
 from brand_evidence.core.clock import parse_iso
 from brand_evidence.core.db import session_scope
-from brand_evidence.core.models import ArchiveSnapshot, EvidenceEntry, Mention, Post, Run
+from brand_evidence.core.models import (
+    ArchiveSnapshot,
+    Artifact,
+    EvidenceEntry,
+    Mention,
+    Post,
+    Run,
+)
 from brand_evidence.core.runs import tracked_run
 
 TEMPLATES = Path(__file__).with_name("templates")
@@ -95,7 +102,10 @@ def _collect(app: App, for_date: date) -> dict[str, Any]:
             select(Mention).where(Mention.status == "new", Mention.discovered_at < stale_cutoff)
         ).all()
         stuck = _stuck(session)
-        chain = evidence_log.verify(session)
+        login_walls = _login_walls(session, [p.id for p in posts])
+        # Daily: check what was appended since the last full walk, and move
+        # the checkpoint forward. `verify` and `export` still walk it all.
+        chain = evidence_log.verify_since_checkpoint(session)
         totals = {
             "posts": session.scalar(select(func.count()).select_from(Post)) or 0,
             "mentions": session.scalar(select(func.count()).select_from(Mention)) or 0,
@@ -119,6 +129,8 @@ def _collect(app: App, for_date: date) -> dict[str, Any]:
                     # printing only the first hid the rest.
                     "errors": (r.error or "").splitlines(),
                     "uncaptured": len((r.stats or {}).get("capture_skipped", []) or []),
+                    # Owed a capture, and the next run will take them.
+                    "pending_captures": (r.stats or {}).get("capture_pending", 0),
                 }
                 for r in runs
             ],
@@ -126,6 +138,7 @@ def _collect(app: App, for_date: date) -> dict[str, Any]:
                 {
                     "platform": p.platform,
                     "url": p.url,
+                    "login_wall": p.id in login_walls,
                     "archive": (
                         archive_by_subject[p.id].status if p.id in archive_by_subject else "none"
                     ),
@@ -162,6 +175,22 @@ def _collect(app: App, for_date: date) -> dict[str, Any]:
             "chain_ok": chain.ok,
             "totals": totals,
         }
+
+
+def _login_walls(session: Session, post_ids: list[str]) -> set[str]:
+    """The posts whose capture looked like an authentication wall.
+
+    The capturer has always recorded this and nothing ever read it, so a run
+    of authwall screenshots reported as clean captures with good hashes. One
+    query for the whole digest, not one per post."""
+    if not post_ids:
+        return set()
+    rows = session.scalars(
+        select(Artifact).where(
+            Artifact.subject_type == "post", Artifact.subject_id.in_(post_ids)
+        )
+    ).all()
+    return {r.subject_id for r in rows if (r.capture_meta or {}).get("login_wall_suspected")}
 
 
 def _rank(status: str) -> int:

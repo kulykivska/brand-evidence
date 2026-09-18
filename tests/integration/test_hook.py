@@ -88,15 +88,17 @@ def test_real_playwright_capture_of_local_fixture(be: App) -> None:
 
     be.archive = FakeArchive()
     url = FIXTURE.resolve().as_uri()
-    result = ingest_post(
-        be,
-        platform="other",
-        url=url,
-        body="Northwind fixture",
-        published_at=None,
-        capturer=make_capturer(be),
-        allow_local=True,
-    )
+    # The capturer holds a browser open now, so a caller supplying one closes it.
+    with make_capturer(be) as capturer:
+        result = ingest_post(
+            be,
+            platform="other",
+            url=url,
+            body="Northwind fixture",
+            published_at=None,
+            capturer=capturer,
+            allow_local=True,
+        )
     with be.sessions() as s:
         png = s.scalars(select(Artifact).where(Artifact.kind == "screenshot_png")).one()
         html = s.scalars(select(Artifact).where(Artifact.kind == "html")).one()
