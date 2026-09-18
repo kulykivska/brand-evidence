@@ -46,6 +46,10 @@ class Mention(Base):
     matched_terms: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="new")
     notes: Mapped[str | None] = mapped_column(Text)
+    # Capture is retried across runs: a mention the budget or a failure skipped
+    # used to stay uncaptured forever. States: ingest.crawler.CAPTURE_STATES.
+    capture_state: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
+    capture_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class Artifact(Base):
@@ -87,6 +91,22 @@ class EvidenceEntry(Base):
     # Unique: one successor per entry, so a forked chain cannot be written.
     prev_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     entry_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+
+
+class ChainCheckpoint(Base):
+    """The highest seq whose chain has been verified in full, and when.
+
+    Routine readers (digest, report) re-check only what came after the last
+    checkpoint; `verify` and `export` still walk the whole chain.
+    """
+
+    __tablename__ = "chain_checkpoints"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    # Unique: two checkpoints at one seq make the trusted one arbitrary.
+    seq: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    entry_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    verified_at: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class Run(Base):

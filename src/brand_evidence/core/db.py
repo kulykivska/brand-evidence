@@ -1,11 +1,12 @@
 """Engine and session factory.
 
 SQLite in WAL mode. Two things keep the evidence log linear under the
-scheduled jobs, which do overlap: every transaction starts as BEGIN
-IMMEDIATE, so a writer takes the write lock before it reads the chain head
-rather than after, and a unique index on prev_hash makes a fork
-unrepresentable even if something else appends. Rows are also write-
-protected by triggers."""
+scheduled jobs, which do overlap: a writing transaction (session_scope)
+starts as BEGIN IMMEDIATE, so it takes the write lock before it reads the
+chain head rather than after, and a unique index on prev_hash makes a fork
+unrepresentable even if something else appends. Read-only sessions stay
+DEFERRED and keep WAL's concurrency. Rows are also write-protected by
+triggers."""
 
 from __future__ import annotations
 
@@ -24,12 +25,22 @@ APPEND_ONLY_TRIGGERS = (
     """CREATE TRIGGER IF NOT EXISTS evidence_log_no_delete
        BEFORE DELETE ON evidence_log
        BEGIN SELECT RAISE(ABORT, 'evidence_log is append-only'); END;""",
+    # Checkpoints say how much of the chain has been verified, so a forged one
+    # silences the daily check. They get the same protection as the log.
+    """CREATE TRIGGER IF NOT EXISTS chain_checkpoints_no_update
+       BEFORE UPDATE ON chain_checkpoints
+       BEGIN SELECT RAISE(ABORT, 'chain_checkpoints is append-only'); END;""",
+    """CREATE TRIGGER IF NOT EXISTS chain_checkpoints_no_delete
+       BEFORE DELETE ON chain_checkpoints
+       BEGIN SELECT RAISE(ABORT, 'chain_checkpoints is append-only'); END;""",
 )
 
 
 # How long a writer waits for another writer. A capture run holds its
 # transaction for as long as the network takes, so this is generous.
 BUSY_TIMEOUT_MS = 30_000
+# Execution option naming the SQLite transaction mode for one transaction.
+TXN_OPTION = "brand_evidence_txn"
 
 
 def make_engine(db_path: Path) -> Engine:
@@ -50,9 +61,10 @@ def make_engine(db_path: Path) -> Engine:
 
     @event.listens_for(engine, "begin")
     def _on_begin(conn) -> None:  # type: ignore[no-untyped-def]
-        # IMMEDIATE takes the write lock before the head is read. Readers pay
-        # for it too: in WAL they no longer run alongside a writer (see #6).
-        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        # Writers ask for IMMEDIATE so the lock is taken before they read the
+        # chain head; readers stay DEFERRED and keep WAL's concurrency.
+        mode = conn.get_execution_options().get(TXN_OPTION, "DEFERRED")
+        conn.exec_driver_sql(f"BEGIN {mode}")
 
     return engine
 
@@ -62,7 +74,7 @@ def schema_present(engine: Engine) -> bool:
 
 
 def install_triggers(engine: Engine) -> None:
-    if not schema_present(engine):
+    if not schema_present(engine) or not inspect(engine).has_table("chain_checkpoints"):
         return
     with engine.begin() as conn:
         for statement in APPEND_ONLY_TRIGGERS:
@@ -75,8 +87,12 @@ def make_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 @contextmanager
 def session_scope(factory: sessionmaker[Session]) -> Iterator[Session]:
+    """A writing transaction: it commits on exit, and it takes SQLite's write
+    lock up front so reading the evidence chain head and appending after it
+    cannot interleave with another writer."""
     session = factory()
     try:
+        session.connection(execution_options={TXN_OPTION: "IMMEDIATE"})
         yield session
         session.commit()
     except Exception:

@@ -8,7 +8,7 @@ Window: since {{ window_start }} (UTC)
 | job | status | started (UTC) | notes |
 |---|---|---|---|
 {% for r in runs %}
-| {{ r.job }} | {{ r.status }} | {{ r.started_at[:19] }} | {% if r.failed_sources %}failed sources: {{ r.failed_sources | join(", ") }}{% endif %}{% if r.skipped_sources %} skipped (no credentials): {{ r.skipped_sources | join(", ") }}{% endif %}{% if r.uncaptured %} uncaptured mentions: {{ r.uncaptured }}{% endif %}{% for line in r.errors %} {{ line }}{% endfor %} |
+| {{ r.job }} | {{ r.status }} | {{ r.started_at[:19] }} | {% if r.failed_sources %}failed sources: {{ r.failed_sources | join(", ") }}{% endif %}{% if r.skipped_sources %} skipped (no credentials): {{ r.skipped_sources | join(", ") }}{% endif %}{% if r.uncaptured %} uncaptured mentions: {{ r.uncaptured }}{% endif %}{% if r.pending_captures %} awaiting capture: {{ r.pending_captures }}{% endif %}{% for line in r.errors %} {{ line }}{% endfor %} |
 {% endfor %}
 {% else %}
 No runs recorded in this window. This is a coverage gap.
@@ -20,7 +20,7 @@ No runs recorded in this window. This is a coverage gap.
 | platform | url | archive |
 |---|---|---|
 {% for p in posts %}
-| {{ p.platform }} | {{ p.url }} | {{ p.archive }}{% if p.snapshot_url %} ({{ p.snapshot_url }}){% endif %} |
+| {{ p.platform }} | {{ p.url }} | {{ p.archive }}{% if p.snapshot_url %} ({{ p.snapshot_url }}){% endif %}{% if p.login_wall %} — login wall suspected, the capture may show a sign-in page{% endif %} |
 {% endfor %}
 {% else %}
 0 posts captured.

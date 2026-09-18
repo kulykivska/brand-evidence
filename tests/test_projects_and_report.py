@@ -42,7 +42,9 @@ def test_report_did_found_need(be: App) -> None:
     data = build_report(be, project="northwind")
     assert data["agent"] == "brand-evidence" and data["project"] == "northwind"
     assert data["did"]["posts_captured"] == 1 and data["did"]["archives_confirmed"] == 1
-    assert data["did"]["runs"] == {"crawl": "partial"}
+    # The hook writes a run of its own now, so a push that dies before
+    # capture is visible in the report.
+    assert data["did"]["runs"] == {"crawl": "partial", "hook": "ok"}
     assert data["found"]["failed_sources"] == ["broken"]
     assert data["found"]["chain"].startswith("chain valid")
     assert data["need"] == ["source(s) failing: broken"]

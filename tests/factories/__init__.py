@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 
 from brand_evidence.capture.archiver import HistoricalSnapshot, SubmitResult
 from brand_evidence.capture.screenshot import CaptureResult
+from brand_evidence.capture.timestamp import TimestampToken
 from brand_evidence.core.clock import now_iso
 from brand_evidence.sources.base import RawHit, SourceUnavailableError
 
@@ -28,6 +30,24 @@ class FakeCapturer:
                 "authenticated": False,
                 "playwright_version": "test",
             },
+        )
+
+
+class FakeTSA:
+    url = "https://tsa.example/tsr"
+
+    def __init__(self) -> None:
+        self.stamped: list[bytes] = []
+
+    def stamp(self, data: bytes) -> TimestampToken:
+        self.stamped.append(data)
+        return TimestampToken(
+            tsr=b"TSR:" + hashlib.sha256(data).digest(),
+            gen_time="2026-09-15T04:00:00.000000+00:00",
+            digest_hex=hashlib.sha256(data).hexdigest(),
+            tsa_url=self.url,
+            serial="42",
+            policy="1.2.3",
         )
 
 
@@ -63,6 +83,8 @@ class FakeArchive:
     def check(self, url: str, submitted_at: str, provider_ref: str | None) -> str | None:
         self.checks += 1
         self.last_ref = provider_ref
+        self.checked_since: list[str] = getattr(self, "checked_since", [])
+        self.checked_since.append(submitted_at)
         return self.check_result
 
 

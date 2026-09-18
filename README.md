@@ -46,6 +46,10 @@ brand-evidence --project northwind report --json   # machine-readable status
 
 The registry lives at `~/.config/brand-evidence/projects.yaml`. `BE_PROJECT` works as well.
 
+Which sources run, the query terms and the hosts never captured come from a `sources.yaml`
+next to that project's `.env` (or from `BE_SOURCES_FILE`). Without one, the packaged defaults
+apply: every source on, terms from `BE_BRAND_TERMS`, nothing skipped.
+
 ## Posts published from a server
 
 When publishing happens elsewhere (a posting pipeline on a server, say), point

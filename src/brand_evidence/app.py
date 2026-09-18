@@ -11,12 +11,18 @@ from sqlalchemy.orm import Session, sessionmaker
 from brand_evidence.capture.archiver import ArchiveProvider, make_provider
 from brand_evidence.capture.timestamp import Rfc3161Authority, TimestampAuthority
 from brand_evidence.config.settings import Settings, load_settings
-from brand_evidence.config.sources_config import SourcesConfig, load_sources_config
+from brand_evidence.config.sources_config import (
+    SourcesConfig,
+    load_sources_config,
+    resolve_sources_path,
+)
 from brand_evidence.core.db import install_triggers, make_engine, make_session_factory
-from brand_evidence.core.logging import configure_logging
+from brand_evidence.core.logging import configure_logging, get_logger
 from brand_evidence.core.models import Base
 from brand_evidence.core.store import ArtifactStore
 from brand_evidence.sources.base import set_contact_url
+
+log = get_logger(__name__)
 
 
 @dataclass
@@ -40,6 +46,8 @@ def build_app(
     settings = settings or load_settings(env_file)
     configure_logging(settings.log_level)
     set_contact_url(settings.contact_url)
+    sources_path = resolve_sources_path(settings.sources_file, env_file)
+    log.debug("sources_config_loaded", path=str(sources_path))
     engine = make_engine(settings.db_path)
     if create_schema:
         # Tests and first-run convenience; production databases use `alembic upgrade head`.
@@ -53,7 +61,7 @@ def build_app(
         archive=make_provider(
             settings.archive_provider, settings.wayback_access_key, settings.wayback_secret_key
         ),
-        sources_config=load_sources_config(),
+        sources_config=load_sources_config(sources_path),
         tsa=Rfc3161Authority(settings.tsa_url) if settings.tsa_enabled else None,
     )
 

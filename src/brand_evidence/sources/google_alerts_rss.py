@@ -11,7 +11,13 @@ from defusedxml.ElementTree import fromstring as safe_fromstring
 
 from brand_evidence.core.clock import parse_iso
 from brand_evidence.core.logging import get_logger
-from brand_evidence.sources.base import RawHit, SourceUnavailableError, terms_in, user_agent
+from brand_evidence.sources.base import (
+    RawHit,
+    SourceUnavailableError,
+    fetch,
+    http_kwargs,
+    terms_in,
+)
 
 log = get_logger(__name__)
 
@@ -26,12 +32,12 @@ class GoogleAlertsRSSSource:
         self.client = client
 
     async def search(self, terms: list[str], since: datetime) -> list[RawHit]:
-        client = self.client or httpx.AsyncClient(timeout=30, headers={"User-Agent": user_agent()})
+        client = self.client or httpx.AsyncClient(**http_kwargs())  # type: ignore[arg-type]
         hits: list[RawHit] = []
         try:
             for feed in self.feeds:
                 try:
-                    response = await client.get(feed)
+                    response = await fetch(client, "GET", feed)
                     response.raise_for_status()
                 except httpx.HTTPError as exc:
                     # Not str(exc): httpx spells out the full feed URL, and a

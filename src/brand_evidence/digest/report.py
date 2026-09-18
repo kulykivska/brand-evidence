@@ -45,7 +45,8 @@ def build_report(app: App, *, project: str | None = None, hours: int = 24) -> di
             )
             or 0
         )
-        chain = evidence_log.verify(s)
+        # Read-only session: check what is new, leave the checkpoint to the digest.
+        chain = evidence_log.verify_since_checkpoint(s, record=False)
     failed_sources = sorted(
         {src for r in runs for src in (r.stats or {}).get("failed_sources", [])}
     )

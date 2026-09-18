@@ -6,7 +6,13 @@ from datetime import datetime
 
 import httpx
 
-from brand_evidence.sources.base import RawHit, SourceUnavailableError, terms_in, user_agent
+from brand_evidence.sources.base import (
+    RawHit,
+    SourceUnavailableError,
+    fetch,
+    http_kwargs,
+    terms_in,
+)
 
 BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
 
@@ -24,12 +30,14 @@ class WebSearchSource:
         self.client = client
 
     async def search(self, terms: list[str], since: datetime) -> list[RawHit]:
-        client = self.client or httpx.AsyncClient(timeout=30, headers={"User-Agent": user_agent()})
+        client = self.client or httpx.AsyncClient(**http_kwargs())  # type: ignore[arg-type]
         hits: dict[str, RawHit] = {}
         try:
             for term in terms:
                 try:
-                    response = await client.get(
+                    response = await fetch(
+                        client,
+                        "GET",
                         BRAVE_URL,
                         params={"q": f'"{term}"', "freshness": "pw", "count": 20},
                         headers={
