@@ -132,8 +132,12 @@ with `shasum -a 256 -c MANIFEST.txt` and a ten-line script described in its `REA
 
 ## Scheduling without a Mac
 
-`.github/workflows/crawl.yml` runs `crawl --no-capture` and `digest` daily on GitHub Actions.
-It covers discovery only; capture and archive submission need the local machine.
+`examples/github-actions/daily-crawl.yml` runs `crawl --no-capture` and `digest` daily on GitHub
+Actions. It covers discovery only; capture and archive submission need the local machine.
+
+Copy it into your own repository rather than running it here, and keep that repository **private**:
+the job caches the evidence database and uploads the digest as an artifact, and in a public
+repository anyone who can read the repo can read both.
 
 ## Tests
 

@@ -1,3 +1,19 @@
+# Example: run the daily crawl on GitHub Actions instead of local launchd.
+#
+# Copy this into .github/workflows/ of YOUR OWN repository. Two warnings before
+# you do:
+#
+#   1. Use a PRIVATE repository. This job caches the evidence database and
+#      uploads the digest as an artifact, and in a public repository both are
+#      readable by anyone who can see the repo.
+#   2. The evidence log is only as trustworthy as the machine that appends to
+#      it. A hosted runner rebuilds the database from a cache on every run; for
+#      evidence you intend to rely on, prefer the local launchd schedule
+#      (`brand-evidence schedule install`) on a machine you control.
+#
+# Required repository variable: BE_BRAND_TERMS.
+# Required secrets: whichever sources you enable (see .env.example).
+
 name: daily-crawl
 on:
   schedule:
