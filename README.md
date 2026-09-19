@@ -130,6 +130,27 @@ SQLite triggers refuse UPDATE and DELETE on that table. `brand-evidence verify` 
 whole chain and names the first broken `seq`. `export` produces a zip a third party can check
 with `shasum -a 256 -c MANIFEST.txt` and a ten-line script described in its `README.txt`.
 
+## Is it actually recording?
+
+```console
+$ brand-evidence doctor
+[ok]   database: /Users/you/brand-evidence/evidence.db
+[ok]   disk: 210.4 GB free; store 3.2 GB, database 0.1 GB. An export needs about 6.6 GB more.
+[ok]   triggers: append-only triggers installed
+[ok]   migrations: at head (0004)
+[ok]   evidence chain: chain valid: 4812 entries (seq 4790 onwards; earlier verified in full at ...)
+[warn] sources: skipped for missing credentials: ['reddit']
+[ok]   schedule/crawl: loaded, daily at 07:00
+[FAIL] runs/digest: last run 2026-09-14T07:30 (running): stuck since then
+[ok]   backlog: 3 mention(s) awaiting capture, 1 snapshot(s) pending
+```
+
+Every failure this tool can have is quiet: a launchd job that never loaded, a
+disk with no room for the next capture, an expired key, a schema one migration
+behind, a run that died mid-flight and left its row at `running`. Each shows up
+days later as a digest that never arrived. `doctor` exits non-zero on anything
+marked FAIL, so it works as a check in cron as well as by hand.
+
 ## Scheduling without a Mac
 
 `examples/github-actions/daily-crawl.yml` runs `crawl --no-capture` and `digest` daily on GitHub
