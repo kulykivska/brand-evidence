@@ -299,6 +299,27 @@ def timestamp() -> None:
 
 
 @app.command()
+def doctor() -> None:
+    """Check that this installation is actually recording: paths, schema,
+    triggers, chain, sources, schedule, recent runs and backlog."""
+    from brand_evidence import doctor as checks
+
+    be = _app()
+    results = checks.run_checks(be, project=_state["project"])
+    for check in results:
+        typer.echo(str(check))
+    verdict = checks.worst(results)
+    typer.echo("")
+    if verdict == checks.FAIL:
+        typer.echo("Something is wrong: the lines marked FAIL above.")
+        raise typer.Exit(1)
+    if verdict == checks.WARN:
+        typer.echo("Working, with the warnings above.")
+        return
+    typer.echo("Everything checks out.")
+
+
+@app.command()
 def verify() -> None:
     """Walk the evidence hash chain and report the first break."""
     from brand_evidence.core import evidence_log
