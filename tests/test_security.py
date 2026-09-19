@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
+from unittest import mock
 
 import httpx
 import pytest
@@ -140,3 +142,66 @@ async def test_an_ordinary_response_comes_back_whole() -> None:
 def test_too_large_is_reported_as_an_unavailable_source() -> None:
     """So one greedy feed makes the run partial, not crashed."""
     assert issubclass(ResponseTooLargeError, SourceUnavailableError)
+
+
+def _client_factory(handler):  # type: ignore[no-untyped-def]
+    """A stand-in for httpx.Client that answers from `handler`.
+
+    The real class is captured here: patching httpx.Client patches the module
+    everyone shares, so building one inside would call the stand-in again.
+    """
+    transport = httpx.MockTransport(handler)
+    real = httpx.Client
+
+    def make(**kwargs: object) -> httpx.Client:
+        return real(transport=transport, timeout=kwargs.get("timeout"))  # type: ignore[arg-type]
+
+    return make
+
+
+def test_the_classifier_talks_to_whichever_model_was_configured() -> None:
+    """The model is configuration, not a code path: the same classifier reaches
+    Claude, an OpenAI-shaped gateway or a model on this machine."""
+    from brand_evidence.core.llm import LlmClient
+
+    seen: list[tuple[str, dict]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((str(request.url), json.loads(request.content)))
+        if request.url.path.endswith("/messages"):
+            return httpx.Response(200, json={"content": [{"type": "text", "text": "positive"}]})
+        if request.url.path.endswith("/api/chat"):
+            return httpx.Response(200, json={"message": {"content": "negative"}})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "neutral"}}]})
+
+    fake = _client_factory(handler)
+    with mock.patch("brand_evidence.core.llm.httpx.Client", fake):
+        assert LlmClient("anthropic", "claude-sonnet-5", api_key="k").ask("p") == "positive"
+        assert LlmClient("openrouter", "qwen/qwen3-max", api_key="k").ask("p") == "neutral"
+        assert LlmClient("ollama", "qwen2.5:14b").ask("p") == "negative"
+    assert [url for url, _ in seen] == [
+        "https://api.anthropic.com/v1/messages",
+        "https://openrouter.ai/api/v1/chat/completions",
+        "http://localhost:11434/api/chat",
+    ]
+
+
+def test_a_local_model_is_asked_without_a_key() -> None:
+    from brand_evidence.core.llm import LlmClient
+
+    keys: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        keys.append(request.headers.get("authorization"))
+        return httpx.Response(200, json={"message": {"content": "neutral"}})
+
+    with mock.patch("brand_evidence.core.llm.httpx.Client", _client_factory(handler)):
+        LlmClient("ollama", "qwen2.5:14b").ask("p")
+    assert keys == [None]
+
+
+def test_a_gateway_address_that_is_not_http_is_refused() -> None:
+    from brand_evidence.core.llm import LlmClient, LlmError
+
+    with pytest.raises(LlmError, match="only http and https"):
+        LlmClient("chat", "m", base_url="file:///etc").ask("p")

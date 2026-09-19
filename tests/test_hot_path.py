@@ -335,3 +335,60 @@ def test_run_bookkeeping_survives_another_writer(be: App) -> None:
     with be.sessions() as session:
         run = session.scalars(select(Run).where(Run.job == "test")).one()
     assert (run.status, run.stats) == ("ok", {"done": True})
+
+
+def test_classification_does_not_hold_the_write_lock_while_it_asks(be: App) -> None:
+    """The same lesson as the archive poll: a network call inside the writing
+    transaction locks every other job out for the length of the run."""
+    from unittest import mock
+
+    import httpx
+
+    from brand_evidence.core.models import Mention
+    from brand_evidence.digest.classification import classify_new_mentions
+
+    be.settings.enable_classification = True
+    be.settings.llm_provider = "ollama"
+    be.settings.llm_model = "qwen2.5:14b"
+    with session_scope(be.sessions) as session:
+        session.add(
+            Mention(
+                id="m1",
+                source="hn_algolia",
+                url="https://news.example.com/a",
+                title="Northwind ships",
+                excerpt="...",
+                discovered_at="2026-09-19T00:00:00+00:00",
+                matched_terms=["Northwind"],
+                status="new",
+            )
+        )
+
+    lock_held: list[bool] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        conn = sqlite3.connect(str(be.settings.db_path), timeout=1.0)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.rollback()
+            lock_held.append(False)
+        except sqlite3.OperationalError:
+            lock_held.append(True)
+        finally:
+            conn.close()
+        return httpx.Response(200, json={"message": {"content": "positive"}})
+
+    real = httpx.Client
+    transport = httpx.MockTransport(handler)
+    with mock.patch(
+        "brand_evidence.core.llm.httpx.Client",
+        lambda **kw: real(transport=transport, timeout=kw.get("timeout")),
+    ), mock.patch(
+        "brand_evidence.digest.classification.httpx.Client",
+        lambda **kw: real(transport=transport, timeout=kw.get("timeout")),
+    ):
+        assert classify_new_mentions(be) == 1
+
+    assert lock_held == [False]
+    with be.sessions() as session:
+        assert "[auto-tag:positive]" in (session.get(Mention, "m1").notes or "")
