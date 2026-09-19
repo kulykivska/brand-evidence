@@ -8,6 +8,8 @@ from typing import Annotated, Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from brand_evidence.core.llm import KEYLESS
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -49,7 +51,18 @@ class Settings(BaseSettings):
     own_publications_token: str = ""
     own_publications_auth: Literal["api_key", "bearer"] = "api_key"
 
+    # Advisory classification (§2), off by default. Any provider: a hosted API,
+    # a gateway of your own, or a model on this machine.
     enable_classification: bool = False
+    llm_provider: Literal[
+        "", "anthropic", "openai", "openrouter", "groq", "together", "mistral",
+        "deepseek", "gemini", "ollama", "chat",
+    ] = ""
+    llm_model: str = ""
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    # Read when the provider is anthropic and BE_LLM_API_KEY is empty, so an
+    # existing .env keeps working.
     anthropic_api_key: str = ""
 
     smtp_url: str = ""
@@ -88,8 +101,17 @@ class Settings(BaseSettings):
                 "BE_ARCHIVE_PROVIDER=wayback requires BE_WAYBACK_ACCESS_KEY and "
                 "BE_WAYBACK_SECRET_KEY (free: https://archive.org/account/s3.php)"
             )
-        if self.enable_classification and not self.anthropic_api_key:
-            raise ValueError("BE_ENABLE_CLASSIFICATION=true requires BE_ANTHROPIC_API_KEY")
+        if self.enable_classification:
+            if not (self.llm_provider and self.llm_model):
+                raise ValueError(
+                    "BE_ENABLE_CLASSIFICATION=true requires BE_LLM_PROVIDER and BE_LLM_MODEL"
+                )
+            if self.llm_provider == "chat" and not self.llm_base_url:
+                raise ValueError("BE_LLM_PROVIDER=chat requires BE_LLM_BASE_URL")
+            if not (self.classification_key or self.llm_provider in KEYLESS):
+                raise ValueError(
+                    f"BE_LLM_PROVIDER={self.llm_provider} requires BE_LLM_API_KEY"
+                )
         if self.web_search_api_key and not self.web_search_provider:
             raise ValueError("BE_WEB_SEARCH_API_KEY set but BE_WEB_SEARCH_PROVIDER is empty")
         if bool(self.reddit_client_id) != bool(self.reddit_client_secret):
@@ -97,6 +119,12 @@ class Settings(BaseSettings):
         if self.smtp_url and not (self.digest_email_to and self.digest_email_from):
             raise ValueError("BE_SMTP_URL requires BE_DIGEST_EMAIL_TO and BE_DIGEST_EMAIL_FROM")
         return self
+
+    @property
+    def classification_key(self) -> str:
+        if self.llm_api_key:
+            return self.llm_api_key
+        return self.anthropic_api_key if self.llm_provider == "anthropic" else ""
 
     @property
     def tsa_enabled(self) -> bool:
