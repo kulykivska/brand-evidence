@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from typing import Any
 from urllib.parse import urlsplit
+
+import httpx
 
 ALLOWED_SCHEMES = frozenset({"http", "https"})
 
@@ -64,3 +67,40 @@ def is_safe(url: str, *, resolve: bool = True) -> bool:
     except UnsafeUrlError:
         return False
     return True
+
+
+class GuardedTransport(httpx.BaseTransport, httpx.AsyncBaseTransport):
+    """An httpx transport that checks every request it carries, redirects
+    included.
+
+    A URL that passes and then answers 302 to 169.254.169.254 has defeated a
+    check that ran once. httpx sends each hop as a new request through the
+    transport, which makes the transport the only place that sees them all.
+
+    The standalone version of this is the `ssrf-guard` package; it lives here
+    while that one is not yet a dependency.
+    """
+
+    def __init__(self, inner: Any, *, allow_local: bool = False) -> None:
+        self._inner = inner
+        self._allow_local = allow_local
+
+    def handle_request(self, request: Any) -> Any:
+        if not self._allow_local:
+            check_url(str(request.url))
+        return self._inner.handle_request(request)
+
+    async def handle_async_request(self, request: Any) -> Any:
+        if not self._allow_local:
+            check_url(str(request.url))
+        return await self._inner.handle_async_request(request)
+
+    def close(self) -> None:
+        close = getattr(self._inner, "close", None)
+        if close is not None:
+            close()
+
+    async def aclose(self) -> None:
+        aclose = getattr(self._inner, "aclose", None)
+        if aclose is not None:
+            await aclose()

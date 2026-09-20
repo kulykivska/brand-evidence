@@ -23,7 +23,7 @@ from brand_evidence.core.ids import uuid7
 from brand_evidence.core.logging import get_logger
 from brand_evidence.core.models import Mention
 from brand_evidence.core.runs import RunContext, tracked_run
-from brand_evidence.core.urlguard import is_safe
+from brand_evidence.core.urlguard import GuardedTransport, is_safe
 from brand_evidence.core.urlnorm import normalize_url
 from brand_evidence.ingest.capture_pipeline import make_capturer, store_artifacts, submit_archive
 from brand_evidence.ingest.publications_sync import sync_publications
@@ -75,7 +75,13 @@ class RobotsCache:
 
     def __init__(self, client: httpx.Client | None = None) -> None:
         self._own = client is None
-        self._client = client or httpx.Client(timeout=15, follow_redirects=True)
+        # Redirects checked per hop: robots.txt is fetched from a host somebody
+        # else chose, and http -> https -> somewhere-internal is two hops.
+        self._client = client or httpx.Client(
+            timeout=15,
+            follow_redirects=True,
+            transport=GuardedTransport(httpx.HTTPTransport()),
+        )
         # None means "fetched, and it does not restrict us".
         self._hosts: dict[
             tuple[str, str, int | None], urllib.robotparser.RobotFileParser | None | str

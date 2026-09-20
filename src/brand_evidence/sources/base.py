@@ -9,6 +9,7 @@ from typing import Any, Protocol
 import httpx
 
 from brand_evidence import __version__
+from brand_evidence.core.urlguard import GuardedTransport
 
 EXCERPT_MAX = 2000
 
@@ -44,11 +45,16 @@ class ResponseTooLargeError(SourceUnavailableError):
 
 
 def http_kwargs(timeout: float = 30.0) -> dict[str, object]:
-    """Shared client settings. Bodies are bounded by `fetch`, not by a hook."""
+    """Shared client settings. Bodies are bounded by `fetch`, not by a hook.
+
+    Redirects are followed, and every hop is checked: a feed that answers 302
+    to an internal address is the cheapest way past a guard that ran once.
+    """
     return {
         "timeout": timeout,
         "headers": {"User-Agent": user_agent()},
         "follow_redirects": True,
+        "transport": GuardedTransport(httpx.AsyncHTTPTransport()),
     }
 
 

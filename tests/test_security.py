@@ -96,7 +96,8 @@ async def test_a_response_that_declares_too_much_is_refused_before_it_is_read() 
             200, content=body, headers={"content-length": str(MAX_RESPONSE_BYTES + 1)}
         )
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), **http_kwargs()) as c:  # type: ignore[arg-type]
+    kwargs = {**http_kwargs(), "transport": httpx.MockTransport(handler)}
+    async with httpx.AsyncClient(**kwargs) as c:  # type: ignore[arg-type]
         with pytest.raises(ResponseTooLargeError):
             await fetch(c, "GET", "https://feed.example/atom")
 
@@ -112,7 +113,8 @@ async def test_a_response_that_declares_nothing_is_still_bounded() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, content=body())
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), **http_kwargs()) as c:  # type: ignore[arg-type]
+    kwargs = {**http_kwargs(), "transport": httpx.MockTransport(handler)}
+    async with httpx.AsyncClient(**kwargs) as c:  # type: ignore[arg-type]
         with pytest.raises(ResponseTooLargeError):
             await fetch(c, "GET", "https://feed.example/atom")
 
@@ -121,7 +123,8 @@ async def test_a_malformed_content_length_is_refused_not_crashed() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, content=b"{}", headers={"content-length": "not-a-number"})
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), **http_kwargs()) as c:  # type: ignore[arg-type]
+    kwargs = {**http_kwargs(), "transport": httpx.MockTransport(handler)}
+    async with httpx.AsyncClient(**kwargs) as c:  # type: ignore[arg-type]
         with pytest.raises(ResponseTooLargeError):
             await fetch(c, "GET", "https://feed.example/atom")
 
@@ -133,7 +136,8 @@ async def test_an_ordinary_response_comes_back_whole() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"hits": [{"id": 1}]})
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler), **http_kwargs()) as c:  # type: ignore[arg-type]
+    kwargs = {**http_kwargs(), "transport": httpx.MockTransport(handler)}
+    async with httpx.AsyncClient(**kwargs) as c:  # type: ignore[arg-type]
         response = await fetch(c, "GET", "https://api.example/search")
     response.raise_for_status()
     assert response.json() == {"hits": [{"id": 1}]}
@@ -205,3 +209,28 @@ def test_a_gateway_address_that_is_not_http_is_refused() -> None:
 
     with pytest.raises(LlmError, match="only http and https"):
         LlmClient("chat", "m", base_url="file:///etc").ask("p")
+
+
+def test_a_redirect_to_an_internal_address_is_refused_mid_flight() -> None:
+    """The cheap way past a guard that runs once: pass the check with a public
+    URL, then answer 302 to the metadata service."""
+    from brand_evidence.core.urlguard import GuardedTransport, UnsafeUrlError
+
+    reached: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        reached.append(str(request.url))
+        return httpx.Response(302, headers={"location": "http://169.254.169.254/latest/"})
+
+    transport = GuardedTransport(httpx.MockTransport(handler))
+    with httpx.Client(transport=transport, follow_redirects=True) as client:
+        with pytest.raises(UnsafeUrlError):
+            client.get("https://feed.example/atom")
+    assert reached == ["https://feed.example/atom"]
+
+
+def test_the_source_clients_carry_the_guard() -> None:
+    """Wired, not merely available: the finding was that nothing checked hops."""
+    from brand_evidence.core.urlguard import GuardedTransport
+
+    assert isinstance(http_kwargs()["transport"], GuardedTransport)
