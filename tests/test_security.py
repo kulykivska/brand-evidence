@@ -45,6 +45,8 @@ def test_unfetchable_schemes_are_refused(url: str) -> None:
         "http://169.254.169.254/latest/meta-data/",
         "http://10.0.0.5/",
         "http://[::1]/",
+        "http://100.100.100.200/latest/meta-data/",
+        "http://127.0.0.1\\@example.com/",
     ],
 )
 def test_private_and_loopback_addresses_are_refused(url: str) -> None:

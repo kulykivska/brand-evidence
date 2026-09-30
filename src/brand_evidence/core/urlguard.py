@@ -30,6 +30,8 @@ def _is_private(host: str) -> bool:
         return False
     for info in infos:
         address = ipaddress.ip_address(info[4][0])
+        if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+            address = address.ipv4_mapped
         if (
             address.is_private
             or address.is_loopback
@@ -37,6 +39,8 @@ def _is_private(host: str) -> bool:
             or address.is_reserved
             or address.is_multicast
             or address.is_unspecified
+            # Catches what the named checks miss, such as 100.64.0.0/10 (CGNAT).
+            or not address.is_global
         ):
             return True
     return False
@@ -54,6 +58,9 @@ def check_url(url: str, *, resolve: bool = True) -> None:
         # file:// and data:// would read the machine this runs on and write
         # what they find into the evidence store.
         raise UnsafeUrlError(f"scheme {parts.scheme or '(none)'!r} is not fetchable")
+    if "\\" in url:
+        # Python reads http://127.0.0.1\@evil.com as evil.com; a browser as 127.0.0.1.
+        raise UnsafeUrlError("backslash in URL")
     host = (parts.hostname or "").lower()
     if not host:
         raise UnsafeUrlError("no host in URL")
