@@ -9,7 +9,7 @@ from typing import Any, Protocol
 import httpx
 
 from brand_evidence import __version__
-from brand_evidence.core.urlguard import GuardedTransport
+from brand_evidence.core.urlguard import MAX_REDIRECTS, GuardedTransport
 
 EXCERPT_MAX = 2000
 
@@ -54,6 +54,7 @@ def http_kwargs(timeout: float = 30.0) -> dict[str, object]:
         "timeout": timeout,
         "headers": {"User-Agent": user_agent()},
         "follow_redirects": True,
+        "max_redirects": MAX_REDIRECTS,
         "transport": GuardedTransport(httpx.AsyncHTTPTransport()),
     }
 

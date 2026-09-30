@@ -58,6 +58,12 @@ class FakeContext:
     def new_page(self) -> FakePage:
         return FakePage()
 
+    def route(self, *_args: Any) -> None:
+        self.browser.routed_contexts += 1
+
+    def unroute_all(self, **_kwargs: Any) -> None:
+        pass
+
     def close(self) -> None:
         self.browser.closed_contexts += 1
 
@@ -66,6 +72,7 @@ class FakeBrowser:
     def __init__(self) -> None:
         self.contexts = 0
         self.closed_contexts = 0
+        self.routed_contexts = 0
         self.closed = False
         self.connected = True
         self.browser_type = type("T", (), {"name": "chromium"})()
@@ -118,6 +125,8 @@ def test_one_browser_serves_every_page_in_a_run(monkeypatch: pytest.MonkeyPatch)
     assert browser is not None
     # One context per page, each closed: nothing carries from one to the next.
     assert (browser.contexts, browser.closed_contexts) == (5, 5)
+    # Every guarded page has its requests routed through the guard.
+    assert browser.routed_contexts == 5
     assert browser.closed
 
 

@@ -23,7 +23,7 @@ from brand_evidence.core.ids import uuid7
 from brand_evidence.core.logging import get_logger
 from brand_evidence.core.models import Mention
 from brand_evidence.core.runs import RunContext, tracked_run
-from brand_evidence.core.urlguard import GuardedTransport, is_safe
+from brand_evidence.core.urlguard import MAX_REDIRECTS, GuardedTransport, is_safe
 from brand_evidence.core.urlnorm import normalize_url
 from brand_evidence.ingest.capture_pipeline import make_capturer, store_artifacts, submit_archive
 from brand_evidence.ingest.publications_sync import sync_publications
@@ -80,6 +80,7 @@ class RobotsCache:
         self._client = client or httpx.Client(
             timeout=15,
             follow_redirects=True,
+            max_redirects=MAX_REDIRECTS,
             transport=GuardedTransport(httpx.HTTPTransport()),
         )
         # None means "fetched, and it does not restrict us".

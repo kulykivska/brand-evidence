@@ -160,6 +160,31 @@ Copy it into your own repository rather than running it here, and keep that repo
 the job caches the evidence database and uploads the digest as an artifact, and in a public
 repository anyone who can read the repo can read both.
 
+## What a capture will not reach
+
+Crawled URLs come from search results and feeds, so whoever wrote one chooses
+what the browser opens. The guard is the [ssrf-guard](https://github.com/kulykivska/ssrf-guard)
+package, applied at three points:
+
+- Every request a page routes (navigations, iframes, scripts, fetch, XHR) is
+  checked with Playwright route interception and aborted if its host is, or
+  resolves to, a loopback, private (RFC 1918, unique-local), link-local
+  (`169.254.169.254`), CGNAT or otherwise non-public address.
+- Every connection the browser opens goes through a local SOCKS5 proxy that
+  resolves the name once, refuses any non-public answer and dials exactly the
+  address it checked. That covers what routes miss: redirect hops, WebSockets
+  and a name that answers differently the second time (DNS rebinding).
+- The final page URL is checked again after load.
+
+Refused requests are listed in `capture_meta.blocked_requests`. A refused
+main navigation fails the capture with `UnsafeUrlError`, so nothing internal
+is written to the evidence store. The owner's own URLs on the push path
+(`allow_local`) skip all three.
+
+Service workers are blocked (their fetches skip page routes) and WebRTC is held
+to proxied UDP. Not covered: bugs in Chromium itself, and content: the guard
+judges where a request goes, not what comes back.
+
 ## Tests
 
 ```bash

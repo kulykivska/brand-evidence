@@ -133,6 +133,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyyaml" },
     { name = "sqlalchemy" },
+    { name = "ssrf-guard", extra = ["httpx"] },
     { name = "structlog" },
     { name = "typer" },
 ]
@@ -166,6 +167,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.3" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
+    { name = "ssrf-guard", extras = ["httpx"], git = "https://github.com/kulykivska/ssrf-guard?rev=2c841eeaebc531b04eca7d3a8326546442d92dd0" },
     { name = "structlog", specifier = ">=24.1" },
     { name = "typer", specifier = ">=0.12" },
 ]
@@ -800,6 +802,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8c/13/9e5ab604abf0f8a229daa68b413ef717a76042db6b43ea0b3fbeddc3b045/sqlalchemy-2.0.53-cp312-cp312-win32.whl", hash = "sha256:dd915d37ae2442be08d6e1317814ac9be173341a1ad83ce133a77b4abba2d09d", size = 2140815, upload-time = "2026-09-14T23:03:36.688Z" },
     { url = "https://files.pythonhosted.org/packages/a2/de/0cd77e71f217cb6d849bd830b093710cf3cb2dc3a2d0af2361cf8d12b54a/sqlalchemy-2.0.53-cp312-cp312-win_amd64.whl", hash = "sha256:bb684d78694f77991cfc6fd8ba3bba093f06d7efbc354ea84b077a0d2116464d", size = 2169991, upload-time = "2026-09-14T23:03:38.168Z" },
     { url = "https://files.pythonhosted.org/packages/fc/3c/6ee5fe746b0820335d30c5172527e9a2c7409ac632376d15fded38ff715c/sqlalchemy-2.0.53-py3-none-any.whl", hash = "sha256:87eb05fc61a0835dfe1cbf135d0f99cb2764ad09350d92fdd3fe1b827a557d65", size = 1958002, upload-time = "2026-09-14T22:40:04.431Z" },
+]
+
+[[package]]
+name = "ssrf-guard"
+version = "0.2.0"
+source = { git = "https://github.com/kulykivska/ssrf-guard?rev=2c841eeaebc531b04eca7d3a8326546442d92dd0#2c841eeaebc531b04eca7d3a8326546442d92dd0" }
+
+[package.optional-dependencies]
+httpx = [
+    { name = "httpx" },
 ]
 
 [[package]]
