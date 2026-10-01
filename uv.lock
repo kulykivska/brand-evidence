@@ -167,7 +167,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.3" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlalchemy", specifier = ">=2.0" },
-    { name = "ssrf-guard", extras = ["httpx"], git = "https://github.com/kulykivska/ssrf-guard?rev=2c841eeaebc531b04eca7d3a8326546442d92dd0" },
+    { name = "ssrf-guard", extras = ["httpx"], git = "https://github.com/kulykivska/ssrf-guard?tag=v0.2.0" },
     { name = "structlog", specifier = ">=24.1" },
     { name = "typer", specifier = ">=0.12" },
 ]
@@ -807,7 +807,7 @@ wheels = [
 [[package]]
 name = "ssrf-guard"
 version = "0.2.0"
-source = { git = "https://github.com/kulykivska/ssrf-guard?rev=2c841eeaebc531b04eca7d3a8326546442d92dd0#2c841eeaebc531b04eca7d3a8326546442d92dd0" }
+source = { git = "https://github.com/kulykivska/ssrf-guard?tag=v0.2.0#e99bb5b03cc07b6a13e8c1552c33bf5e9113a606" }
 
 [package.optional-dependencies]
 httpx = [

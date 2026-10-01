@@ -30,7 +30,7 @@ brand-evidence = "brand_evidence.cli:app"
 
 [tool.uv.sources]
 # Pinned to the commit that closes DNS rebinding until 0.2.0 is on PyPI.
-ssrf-guard = { git = "https://github.com/kulykivska/ssrf-guard", rev = "2c841eeaebc531b04eca7d3a8326546442d92dd0" }
+ssrf-guard = { git = "https://github.com/kulykivska/ssrf-guard", tag = "v0.2.0" }
 
 [dependency-groups]
 dev = [
